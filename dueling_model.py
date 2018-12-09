@@ -1,4 +1,5 @@
 import pandas as pd
+import csv
 import numpy as np
 from sklearn.model_selection import train_test_split
 from keras import backend as K
@@ -39,24 +40,8 @@ def load_data(args):
 
 def build_model(args):
     """
-    Modified NVIDIA model
+    Dueling SARSA
     """
-    #model = Sequential()
-    #model.add(Lambda(lambda x: x/127.5-1.0, input_shape=INPUT_SHAPE))
-    #model.add(Conv2D(24, 5, 5, activation='elu', subsample=(2, 2)))
-    #model.add(Conv2D(36, 5, 5, activation='elu', subsample=(2, 2)))
-    #model.add(Conv2D(48, 5, 5, activation='elu', subsample=(2, 2)))
-    #model.add(Conv2D(64, 3, 3, activation='elu'))
-    #model.add(Conv2D(64, 3, 3, activation='elu'))
-    #model.add(Dropout(args.keep_prob))
-    #model.add(Flatten())
-    #model.add(Dense(100, activation='elu'))
-    #model.add(Dense(75, activation='elu'))
-    #model.add(Dense(50, activation='elu'))
-    #model.add(Dense(20))
-    #model.summary()
-
-
     inp = Input(shape=(66, 200, 3))
     L1 = Lambda(lambda x: x/127.5-1.0)(inp)
     L2 = Conv2D(24, (5, 5), activation='elu', strides=(2, 2))(L1)
@@ -104,7 +89,10 @@ def train_model(model, args, X_train, X_valid, y_train, y_valid):
                         callbacks=[checkpoint],
                         verbose=1)
 
-    save_object(training_history.history, "THist_log.pkl")
+    with open("Dueling_Training_Log.csv", "w") as outfile:
+        writer = csv.writer(outfile)
+        writer.writerow(training_history.history.keys())
+        writer.writerows(zip(*training_history.history.values()))
     
 
 def save_object(obj, filename):

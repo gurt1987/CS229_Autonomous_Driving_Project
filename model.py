@@ -1,4 +1,5 @@
 import pandas as pd
+import csv
 import numpy as np
 from sklearn.model_selection import train_test_split
 from keras import backend as K
@@ -37,7 +38,7 @@ def load_data(args):
 
 def build_model(args):
     """
-    Modified NVIDIA model
+    SARSA
     """
     model = Sequential()
     model.add(Lambda(lambda x: x/127.5-1.0, input_shape=INPUT_SHAPE))
@@ -78,7 +79,11 @@ def train_model(model, args, X_train, X_valid, y_train, y_valid):
                         nb_val_samples=len(X_valid),
                         callbacks=[checkpoint],
                         verbose=1)
-    save_object(training_history.history, "THist_SARSA_log.pkl")
+    
+    with open("SARSA_Training_Log.csv", "w") as outfile:
+        writer = csv.writer(outfile)
+        writer.writerow(training_history.history.keys())
+        writer.writerows(zip(*training_history.history.values()))
     
 
 def save_object(obj, filename):
@@ -104,7 +109,7 @@ def main():
     parser.add_argument('-t', help='test size fraction',    dest='test_size',         type=float, default=0.05)
     parser.add_argument('-k', help='drop out probability',  dest='keep_prob',         type=float, default=0.5)
     parser.add_argument('-n', help='number of epochs',      dest='nb_epoch',          type=int,   default=200)
-    parser.add_argument('-s', help='samples per epoch',     dest='samples_per_epoch', type=int,   default=500)
+    parser.add_argument('-s', help='samples per epoch',     dest='samples_per_epoch', type=int,   default=12)
     parser.add_argument('-b', help='batch size',            dest='batch_size',        type=int,   default=40)
     parser.add_argument('-o', help='save best models only', dest='save_best_only',    type=s2b,   default='true')
     parser.add_argument('-l', help='learning rate',         dest='learning_rate',     type=float, default=1.0e-4)
