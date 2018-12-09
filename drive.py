@@ -11,11 +11,11 @@ import eventlet.wsgi
 from PIL import Image
 from flask import Flask
 from io import BytesIO
-
-from keras.models import load_model, Sequential
+from keras import backend as K
+from keras.models import load_model, Sequential, Model
 from keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint
-from keras.layers import Lambda, Conv2D, MaxPooling2D, Dropout, Dense, Flatten
+from keras.layers import Lambda, Conv2D, MaxPooling2D, Dropout, Dense, Flatten, Input
 
 import utils
 from utils import INPUT_SHAPE, batch_generator
@@ -35,8 +35,8 @@ def telemetry(sid, data):
     if data:
         # The current steering angle of the car
         mu = 0
-        # sigma = 0.03491 #rads
-        sigma = 0 #rads
+        sigma = 0.03491 #rads
+        # sigma = 0 #rads
         steering_angle = float(data["steering_angle"])+ np.random.normal(mu,sigma)
         # The current throttle of the car
         throttle = float(data["throttle"])
@@ -65,7 +65,8 @@ def telemetry(sid, data):
             # print(model.predict(image, batch_size=1))
             # print(dis[idx])
             # input("...")
-            steering_angle = float(dis[idx])
+            event = np.random.choice([0,2/25,-2/25],1,p=[0.95,0.025,0.025])
+            steering_angle = float(dis[idx]+ event)
             # lower the throttle as the speed increases
             # if the speed is above the current speed limit, we are on a downhill.
             # make sure we slow down first and then go back to the original max speed.
@@ -76,7 +77,7 @@ def telemetry(sid, data):
                 speed_limit = MAX_SPEED
             throttle = 1.0 - steering_angle**2 - (speed/speed_limit)**2
 
-            print('{} {} {}'.format(steering_angle, throttle, speed))
+            print('{} {} {} {}'.format(steering_angle, throttle, speed, event))
             send_control(steering_angle, throttle)
         except Exception as e:
             print(e)
@@ -119,22 +120,44 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # model = load_model(args.model)
-    model = Sequential()
-    model.add(Lambda(lambda x: x/127.5-1.0, input_shape=INPUT_SHAPE))
-    model.add(Conv2D(24, 5, 5, activation='elu', subsample=(2, 2)))
-    model.add(Conv2D(36, 5, 5, activation='elu', subsample=(2, 2)))
-    model.add(Conv2D(48, 5, 5, activation='elu', subsample=(2, 2)))
-    model.add(Conv2D(64, 3, 3, activation='elu'))
-    model.add(Conv2D(64, 3, 3, activation='elu'))
-    model.add(Dropout(0.5))
-    model.add(Flatten())
-    model.add(Dense(100, activation='elu'))
-    model.add(Dense(75, activation='elu'))
-    model.add(Dense(50, activation='elu'))
-    model.add(Dense(20))
-    model.summary()
+    # model = Sequential()
+    # model.add(Lambda(lambda x: x/127.5-1.0, input_shape=INPUT_SHAPE))
+    # model.add(Conv2D(24, 5, 5, activation='elu', subsample=(2, 2)))
+    # model.add(Conv2D(36, 5, 5, activation='elu', subsample=(2, 2)))
+    # model.add(Conv2D(48, 5, 5, activation='elu', subsample=(2, 2)))
+    # model.add(Conv2D(64, 3, 3, activation='elu'))
+    # model.add(Conv2D(64, 3, 3, activation='elu'))
+    # model.add(Dropout(0.5))
+    # model.add(Flatten())
+    # model.add(Dense(100, activation='elu'))
+    # model.add(Dense(75, activation='elu'))
+    # model.add(Dense(50, activation='elu'))
+    # model.add(Dense(20))
+    # model.summary()
 
-    model.load_weights('model-007.h5')
+    inp = Input(shape=(66, 200, 3))
+    L1 = Lambda(lambda x: x/127.5-1.0)(inp)
+    L2 = Conv2D(24, (5, 5), activation='elu', strides=(2, 2))(L1)
+    L3 = Conv2D(36, (5, 5), activation='elu', strides=(2, 2))(L2)
+    L4 = Conv2D(48, (5, 5), activation='elu', strides=(2, 2))(L3)
+    L5 = Conv2D(64, (3, 3), activation='elu')(L4)
+    L6 = Conv2D(64, (3, 3), activation='elu')(L5)
+    L7 = Dropout(0.5)(L6)
+    L8 = Flatten()(L7)
+    L9 = Dense(100, activation='elu')(L8)
+    L10 = Dense(75, activation='elu')(L9)
+    
+    A1 = Dense(50, activation='elu')(L10)
+    A2 = Dense(20, activation='elu')(A1)
+    
+    V1 = Dense(50, activation='elu')(L10)
+    V2 = Dense(1, activation='elu')(V1)
+    
+    Q = Lambda(lambda x: x[0][:] + x[1][:] - K.mean(x[1][:]))([V2, A2])
+
+    model = Model(inp, Q)
+
+    model.load_weights('model-001.h5')
 
     if args.image_folder != '':
         print("Creating image folder at {}".format(args.image_folder))
